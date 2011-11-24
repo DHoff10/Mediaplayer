@@ -1,0 +1,589 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+	<head>
+		<title>BeatScape - BeatDetektor + Audio API + Processing.js + CubicVR.js WebGL, Demo #3 /w Drag &amp; Drop</title>
+	  <script src="processing-0.9.0.js" type='text/javascript'></script>
+		<script src="CubicVR.min.js" type="text/javascript"></script>
+		<script language="javascript" src="beatdetektor.js"></script>    
+		<script src="fft.js" type="text/javascript"></script>
+
+    <script language="javascript" type="text/javascript">
+			var bd;
+			var kick_det;
+			var vu;
+			var m_BeatTimer = 0;
+			var m_BeatCounter = 0;
+			var clearClr = [0,0,1];
+			var ftimer = 0;
+			var timerMilliseconds;
+			var timerSeconds = 0;
+			var timerLastSeconds = 0;
+			var pjsTex,nmapTex;
+			var audio;
+
+      var bufferSize = 0;
+      var signal = new Float32Array(bufferSize);
+			var channels = 0;   
+			var rate = 0;   
+      var frameBufferLength = 0;
+			var fft = null;
+
+			 	    function loadedMetadata() 
+						{
+									audio = document.getElementById('audio1');
+
+			            channels      = audio.mozChannels;
+			            rate              = audio.mozSampleRate;
+			            frameBufferLength = audio.mozFrameBufferLength;
+
+									bufferSize = frameBufferLength/channels;
+
+			        		fft = new FFT(bufferSize, rate);
+				          signal = new Float32Array(bufferSize);
+				
+									audio.addEventListener("MozAudioAvailable",audioWritten,false);				
+			      }
+
+			      function audioWritten(event) 
+						{
+							if (fft == null) return;
+
+			        var fb = event.frameBuffer;
+
+			        for (var i = 0, fbl = bufferSize; i < fbl; i++ ) {
+			          // Assuming interlaced stereo channels,
+			          // need to split and merge into a stero-mix mono signal
+			          signal[i] = (fb[2*i] + fb[2*i+1]) / 2;
+			        }
+
+			        fft.forward(signal);
+
+			//				timestamp = document.getElementById('audio1').currentTime;
+							timestamp = event.time;
+
+						  bd.process( timestamp, fft.spectrum );
+
+							if (bd.win_bpm_int_lo)
+							{
+								m_BeatTimer += bd.last_update;
+
+								if (m_BeatTimer > (60.0/bd.win_bpm_int_lo)) 
+								{
+									m_BeatTimer -= (60.0/bd.win_bpm_int_lo);
+									clearClr[0] = 0.5+Math.random()/2;
+									clearClr[1] = 0.5+Math.random()/2;
+									clearClr[2] = 0.5+Math.random()/2;
+									m_BeatCounter++;
+								}
+							}
+
+
+
+
+							ftimer += bd.last_update;
+							if (ftimer > 1.0/30.0) 
+							{
+								vu.process(bd,ftimer);
+
+/*
+							 gl.bindTexture(gl.TEXTURE_2D, CubicVR.Textures[pjsCubeTexture.tex_id]);
+
+							gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+							gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, document.getElementById("pjsCubeCanvas").getContext("2d").canvas);
+						  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);  
+						  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);  
+							gl.generateMipmap(gl.TEXTURE_2D);
+
+							 gl.bindTexture(gl.TEXTURE_2D, CubicVR.Textures[pjsLandscapeTexture.tex_id]); 
+
+							gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+							gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, document.getElementById("pjsLandscapeCanvas").getContext("2d").canvas);
+						  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);  
+						  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);  
+							gl.generateMipmap(gl.TEXTURE_2D);
+
+							gl.bindTexture(gl.TEXTURE_2D, null);
+
+								ftimer = 0; */
+
+							}
+							
+			      }
+
+
+
+
+			
+			var gl;
+		
+			var shaderProgram = null;
+			var texSet = new Array()
+			var maxSeg = 0;
+			var toothAngle = 36;
+
+			var gear_object;
+			var box_object;
+			
+			var box_t = new Array();
+			var light_test;
+			var landscape_test;
+			var scene;
+			var pjsLandscapeMaterial;
+			var pjsLandscapeTexture;
+			var pjsCubeTexture;
+			var pjsCubeMaterial;
+			var pjsTextureRender;
+//			var pjsCubeRender;
+			var sceneObjects = new Array(20);
+			var boxObject = null;
+			var NUM_CUBES = 64;
+            var envTex;
+
+			function buildObjects()
+			{
+			
+				// Create a UV Mapper and apply it to objMaterial
+				objMaterialMap = new CubicVR.UVMapper();
+				objMaterialMap.projection_mode = CubicVR.enums.uv.projection.PLANAR;
+				objMaterialMap.projection_axis = CubicVR.enums.uv.axis.Y;
+				objMaterialMap.scale = [2,2,2];
+				objMaterialMap.diffuse = [1,1,1];
+
+
+                // load an environment texture for super shiny stuff
+                var envTex = new CubicVR.Texture("fract_reflections.jpg");
+                
+                // Load our visualizer processing scene into the pjsTex texture
+                pjsTex = new CubicVR.PJSTexture("bumpTex1.pjs", 128, 128);
+                
+                // Create a normal map generator, and bind the pjsTex to it
+                nmapTex = new CubicVR.NormalMapGen(pjsTex, 128, 128);
+
+				pjsCubeTexture = new CubicVR.PJSTexture("cubeTex1.pjs", 128,128);
+
+                pjsLandscapeTexture = new CubicVR.PJSTexture("landscapeTex.pjs", 128,128);
+
+               // Create a material for the mesh
+                var material1 = new CubicVR.Material({
+                   // color: [80/255, 200/255, 120/255],
+                    specular: [1, 1, 1],
+                    shininess: 0.5,
+                    env_amount: 0.5,
+                    textures: {
+                        color: pjsCubeTexture,
+                        normal: nmapTex,    // use the normal map and pjsTex for bump (parallax) 
+                        bump: pjsTex,
+                        envsphere: envTex
+                    }
+                });
+
+                // create a selection of primitives
+                var uvplanar = {
+                    projectionMode: CubicVR.enums.uv.projection.PLANAR,
+                    projectionAxis: CubicVR.enums.uv.axis.Y,
+                    scale: [3, 3, 3]
+                };
+
+                var uvplane = {
+                    projectionMode: CubicVR.enums.uv.projection.PLANAR,
+                    projectionAxis: CubicVR.enums.uv.axis.Z,
+                    scale: [3, 3, 3]
+                };
+
+                var uvcubic = {
+                    projectionMode: CubicVR.enums.uv.projection.CUBIC,
+                    scale: [3, 3, 3]
+                };
+
+                var torusMesh = CubicVR.primitives.torus({
+                    innerRadius: 0.75,
+                    outerRadius: 1.5,
+                    lat: 24,
+                    lon: 24,
+                    material: material1,
+                    uvmapper: uvcubic
+                }).prepare();
+
+                var planeMesh = CubicVR.primitives.plane({
+                    size: 3.0,
+                    material: material1,
+                    uvmapper: uvplane
+                }).prepare();
+
+                var boxMesh = CubicVR.primitives.box({
+                    size: 3.0,
+                    material: material1,
+                    uvmapper: uvcubic
+                }).prepare();
+
+                var sphereMesh = CubicVR.primitives.sphere({
+                    radius: 1.5,
+                    lat: 24,
+                    lon: 24,
+                    material: material1,
+                    uvmapper: uvplane
+                }).prepare();
+
+                var coneMesh = CubicVR.primitives.cone({
+                    base: 3.0,
+                    height: 3.0,
+                    material: material1,
+                    uvmapper: uvcubic,
+                    lat: 32,
+                }).prepare();
+
+                var cylinderMesh = CubicVR.primitives.cylinder({
+                    radius: 1.5,
+                    height: 3.0,
+                    lon: 24,
+                    material: material1,
+                    uvmapper: uvcubic
+                }).prepare();
+
+
+
+
+				pjsLandscapeMaterial = new CubicVR.Material("landscape");
+//				pjsLandscapeTexture = new CubicVR.Texture();
+				pjsLandscapeMaterial.setTexture(pjsLandscapeTexture,CubicVR.enums.texture.map.COLOR);	
+
+				landscape_test = new CubicVR.Landscape(400,200,200,pjsLandscapeMaterial);
+
+				// make it wavy
+				var w = 0.2;
+				var q = 0.5;
+				
+				for (var i = 0; i < landscape_test.obj.points.length; i++)
+				{
+					var x,z;
+						x = landscape_test.obj.points[i][0]/5.0;
+						z = landscape_test.obj.points[i][2]/5.0;
+
+						landscape_test.obj.points[i][1] = 1.0*(Math.sin(z+q)-Math.sin(x+w))+0.3*(Math.cos(z+x-w)-Math.sin(x-z-q))+1.19*(Math.cos(z*1.4- x*1.8 +q)-Math.sin(2.0*x+z +q)+2.0*Math.sin(Math.PI*Math.cos(x*0.2 + z*0.15))-2.0*Math.cos(2.0*Math.PI*Math.sin(x*0.02 + z*0.15)));
+				}
+				
+				landscape_test.obj.calcNormals();
+				landscape_test.shadowCast = false;
+//				pjsLandscapeMaterial.color = [0.75,0.75,0.75];
+
+				objMaterialMap.max_smooth = 75;
+				objMaterialMap.apply(landscape_test.obj,pjsLandscapeMaterial);
+
+				landscape_test.obj.compile();
+				
+	//			pjsCubeMaterial = new CubicVR.Material("box");
+
+//				pjsCubeMaterial.setTexture(pjsCubeTexture,CubicVR.enums.texture.map.COLOR);
+
+				boxObject = new CubicVR.Mesh();
+				
+				CubicVR.genBoxObject(boxObject,3.0,material1);
+				boxObject.calcNormals();
+
+				objMaterialMap.projection_mode = CubicVR.enums.uv.projection.CUBIC;
+				objMaterialMap.scale = [3,3,3];
+				objMaterialMap.apply(boxObject,material1);
+				
+				boxObject.triangulateQuads();
+				boxObject.compile();		
+				
+				
+				
+				                // create a list of our scene objects
+                var meshes = [coneMesh, cylinderMesh, sphereMesh, boxObject, torusMesh];
+                var nmesh = meshes.length;
+
+    			var i;
+				
+				for (i = 0; i < NUM_CUBES; i++)
+				{
+					sceneObjects[i] = new CubicVR.SceneObject(meshes[i % nmesh]);
+					scene.bindSceneObject(sceneObjects[i]);
+				}
+
+		
+			}
+
+
+
+			function webGLStart() 
+			{
+			  gl = CubicVR.init();
+			  
+   		      if (!gl) {
+		        alert("Could not initialise WebGL, sorry :-(");
+		        return;
+		      }
+
+    	      bd = new BeatDetektor();
+    	      kick_det = new BeatDetektor.modules.vis.BassKick();    
+           	  vu = new BeatDetektor.modules.vis.VU();
+		        canvas = CubicVR.getCanvas();	
+		        
+				scene = new CubicVR.Scene();
+				
+				CubicVR.addResizeable(scene);
+
+				scene.camera.position = [150,250,-150];
+				scene.camera.target = [0,0,0];								
+				scene.camera.setFOV(60);
+				scene.camera.setDimensions(canvas.width,canvas.height);
+
+				
+				buildObjects();				
+
+				scene.bindSceneObject(landscape_test);
+
+	
+
+//				light_test = new CubicVR.Light(CubicVR.enums.light.type.DIRECTIONAL);
+//				light_test.setDirection([0.4,-0.5,0.2]);
+//				scene.bindLight(light_test);
+//				CubicVR.setGlobalAmbient([0.4,0.4,0.4]);
+
+                // Create a shadowed area light, map resolution 2048
+                // designed for shadowing larger areas than spotlights can provide
+                // it represents a directional light with shadows.
+                light_test = new CubicVR.Light({
+                  type:CubicVR.enums.light.type.AREA,
+                  intensity:0.9,
+                  mapRes:2048,  // 4096 ? 8192 ? ;)
+                  areaCeiling:80,
+                  distance: 50,
+                  areaFloor:-50,
+                  areaAxis: [15,5] // specified in degrees east/west north/south
+                });
+				scene.bindLight(light_test);
+				
+				CubicVR.setGlobalAmbient([0.4,0.4,0.4]);
+
+
+                scene.setSkyBox(new CubicVR.SkyBox({texture:"space_skybox.jpg"}));
+ 
+ 
+		    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+		    gl.clearDepth(1.0);
+
+		    gl.enable(gl.DEPTH_TEST);
+		    gl.depthFunc(gl.LEQUAL);
+
+//				pjsCubeRender = Processing(document.getElementById("pjsCubeCanvas"),document.getElementById('tex1script').text);
+//				pjsTextureRender = Processing(document.getElementById("pjsLandscapeCanvas"),document.getElementById('tex2script').text);
+
+  		  fx = new CubicVR.PostProcessChain(canvas.width,canvas.height,true);
+		  fx.setBlurOpacity(0.5);
+		  fx.setBlurIntensity(0.8);
+		  
+
+           var shaderHalfBloom = new CubicVR.PostProcessShader({
+                shader_vertex:"fx_general.vs",
+                shader_fragment:"bloom_6tap.fs",
+                outputMode: CubicVR.enums.post.output.ADD,
+                outputDivisor: 2
+      	    });
+      	 
+          	 fx.addShader(shaderHalfBloom);
+
+            CubicVR.addResizeable(fx);
+
+//				document.getElementById('audio1').mozSetFrameBufferSize(1024);
+//		    setInterval(drawScene, 1000/30);
+            CubicVR.MainLoop(drawScene);
+		  }
+		  
+		
+		 	var xp = 0;
+			var cp = Math.random()*10000;
+			var activeTex = 0;
+			var lastTex = -1;
+		
+			var camPos = [2,2,-2];
+			var camTarget = [0,1,0];
+			var camDist = 0.8;
+			
+			var camFollowNode = [10,40,10];
+			var camNextNode = [0,0,0];
+			var firstRun = false;
+			var frameCounter = 0;
+			var followObj = -1;
+			
+		  function drawScene() 
+			{
+				if (!bd.last_timer) return;
+				if (!timerMilliseconds)
+				{
+				 	timerMilliseconds = (new Date()).getTime();
+					return;
+				}
+			
+				frameCounter++;
+				
+				var newTimerMilliseconds = (new Date()).getTime();
+				
+				timerLastSeconds = (newTimerMilliseconds-timerMilliseconds)/1000.0;
+
+				if (timerLastSeconds > (1/10)) timerLastSeconds = (1/10);
+
+				timerSeconds += timerLastSeconds;
+				timerMilliseconds = newTimerMilliseconds;
+
+				if (timerSeconds > 10 && timerSeconds < 15) document.getElementById('musicTitle').style.opacity = (5-(timerSeconds-10))/5.0;
+				if (timerSeconds > 15 && timerSeconds < 16) document.getElementById('musicTitle').style.opacity = 0;
+				
+
+				if (pjsTex) pjsTex.update();
+				if (nmapTex) nmapTex.update();
+				if (pjsCubeTexture) pjsCubeTexture.update();
+                if (pjsLandscapeTexture && (frameCounter%2 == 0)) pjsLandscapeTexture.update();
+
+				var kickNorm = (m_BeatTimer / (60.0/bd.win_bpm_int_lo));
+
+				cp += 0.1*timerLastSeconds;
+
+				var i;
+				
+				if (timerSeconds > 5.0) if ((Math.floor(timerSeconds)%10)==0 && (timerSeconds-Math.floor(timerSeconds) < 0.2))
+				{
+					followObj = -1;
+
+					if (Math.random()>0.3)
+					{
+						for (i = 0; i < NUM_CUBES; i++)
+						{
+							if (CubicVR.vec3.length(CubicVR.vec3.subtract(sceneObjects[i].position,scene.camera.position)) < 23)
+							{
+								followObj = i; 
+								break;							
+							}
+						}
+					}
+				}
+				
+				if (followObj == -1)
+				{
+					camNextNode = [(Math.cos(cp)-Math.sin(cp/4))*50,1,Math.cos(cp/1.5)-Math.sin(cp*2.0)*50];					
+				}
+				else
+				{
+					camNextNode = sceneObjects[followObj].position;
+				}
+				
+				
+				var nextNodeMin = landscape_test.getHeightValue(camNextNode)+2.0;
+				if (nextNodeMin>camNextNode[1]) camNextNode[1] = nextNodeMin;
+				camFollowNode = CubicVR.vec3.trackTarget(camFollowNode,camNextNode,1.0*timerLastSeconds,camDist);
+				
+				var nodeClipY = landscape_test.getHeightValue(camFollowNode)+2.0;
+				
+				if (camFollowNode[1] < nodeClipY) 
+				camFollowNode[1] -= (camFollowNode[1]-nodeClipY)*timerLastSeconds*4.0; 
+				
+				scene.camera.target = CubicVR.vec3.trackTarget(scene.camera.target,camFollowNode,1.0*timerLastSeconds,camDist);
+				var targetMin = landscape_test.getHeightValue(scene.camera.target)+2.0;
+				if (scene.camera.target[1]<targetMin)scene.camera.target[1] = scene.camera.target[1];
+				scene.camera.position = CubicVR.vec3.trackTarget(scene.camera.position,scene.camera.target,timerLastSeconds,camDist); // ((kickNorm/2.0)+1.0)*
+				scene.camera.setFOV(85.0 + Math.sin(cp)*50);
+							  
+				
+		    //if (bd.win_bpm_int_lo) gl.clearColor(clearClr[0]*(1.6-kickNorm),clearClr[1]*(1.6-kickNorm),clearClr[2]*(1.6-kickNorm), 1.0);
+				 gl.clearColor(clearClr[0]/2.0, clearClr[1]/2.0, clearClr[2]/2.0,1.0);
+
+				 scene.skybox.scene_object.obj.materials[0].color = [clearClr[0], clearClr[1], clearClr[2]];
+
+
+				var blurClip = vu.vu_levels[0]*6.0;
+				if (blurClip < 0) blurClip = 0;
+				if (blurClip > 0.75) blurClip = 0.75;
+				
+				fx.setBlurIntensity(0.85-blurClip);
+
+
+				var camClipY = landscape_test.getHeightValue(scene.camera.position)+2.0;				
+				if (scene.camera.position[1] < camClipY) 
+				scene.camera.position[1] -= (scene.camera.position[1]-camClipY)*timerLastSeconds*4.0;
+				if (scene.camera.position[1] < camClipY-1.5) scene.camera.position[1] = camClipY-1.5;
+
+				var op = cp/2.0;
+				
+				for (var t = 0; t < NUM_CUBES; t++)
+				{
+					var p = t*4;
+					sceneObjects[t].position = [(Math.cos(0.5*p+op)-Math.sin(0.4*p+op/4))*70,1,Math.cos(0.2*p+op/1.5)-Math.sin(0.7*p+op*2.0)*70];
+					var minHeight = landscape_test.getHeightValue(sceneObjects[t].position)+3.0;
+					var objHeight = (Math.cos(0.4*p+op)-Math.sin(0.7*p+op*2.0))*30;
+					if (objHeight>minHeight) minHeight = objHeight;
+					
+					sceneObjects[t].position[1] = minHeight;
+					sceneObjects[t].rotation = [p+cp*150.0,0,p+cp*180.0];
+				}
+
+                scene.updateShadows();
+
+				fx.begin();
+
+    		    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+				scene.render();
+
+				fx.end();
+				
+				gl.clearColor(0.0, 0.0, 0.0, 1.0);								
+		   	    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+				
+				fx.render();
+				
+		  }			
+
+		      function buildViz(file) {
+                var audio = document.getElementById('audio1');
+
+                audio.addEventListener('canplay', function() {
+                  this.play();
+                }, false);
+
+                // Same-origin audio? Don't mind if I do... http://www.w3.org/TR/FileAPI/#dfn-createObjectURL
+                audio.src = window.URL.createObjectURL(file);
+                audio.style.display="";
+          }
+		      
+		      
+		      function dropped(event) {
+            event.preventDefault();
+
+            var files = event.dataTransfer.files;
+
+            for (var i = 0; i< files.length; i++) {
+              buildViz(files[i]);
+              break;
+            }
+            
+            if (bd) bd.reset();
+          }
+
+          function ignore(event) {
+            event.preventDefault();
+          }
+
+          document.addEventListener('dragover', ignore, false);
+          document.addEventListener('dragleave', ignore, false);
+          document.addEventListener('drop', dropped, false);
+    
+		    </script>
+
+	</head>
+		<body onLoad="webGLStart();" style='margin:0px;overflow:hidden;background:black'>
+			<script type='text/javascript'>
+				document.write("<canvas id='cubicvr-canvas' style='border: none;position:absolute;top:0px;left:0px;' width='"+window.innerWidth+"' height='"+(window.innerHeight)+"'></canvas>");
+				</script><audio id='audio1' tabindex="0" style='z-index:1000;position:absolute;top:0px;left:0px' autoplay='true' src="Charles_J_Cliffe-Rampant.ogg" controls="true" onloadedmetadata="loadedMetadata();" style="width: 512px; height:40px; position:absolute; top:0px; left:0px"></audio>
+	
+	<canvas width="128" height="128" id='pjsLandscapeCanvas' style='display:none'></canvas>
+	<canvas width="128" height="128" id='pjsCubeCanvas' style='display:none'></canvas>
+		<script type='text/javascript'>		
+			document.write("<div id='musicTitle' style='position:absolute;z-index:1000;top:"+(window.innerHeight-140)+"px;left:0px;width:600px;height:120px;color:white;font-family:Arial;font-size:20px;padding:10px'>");
+			</script>
+			<u>Track: "Rampant"<br></u><span style='font-size:12px;'>(Hit play or Drag &amp; Drop an OGG file)<br></span>
+			Music &amp; Code by Charles J. Cliffe<br>
+			<a style='text-decoration:none; color:blue' href="http://www.cubicvr.org/">http://www.cubicvr.org/</a>
+			</div>
+	</body></html>

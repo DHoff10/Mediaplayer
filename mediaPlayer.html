@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>mediaPlayer</title>
+  <meta name="HTML 5 media player" content="Media player">
+  <meta name="Daniel Hoff" content="SitePoint">
+ 
+  <link rel="stylesheet" href="style.css" type="text/css">
+  <script type="text/javascript" src="audioData.js"></script>
+  <script  type="text/javascript" src="http://code.google.com/p/html5wow/source/browse/src/demos/audio-visualizer/beatdetektor.js?r=cef021f5871be9eca0472cb76f7f143a6a43a5bc"></script>
+ 
+
+</head>
+<body>
+ 
+ <div id="background">
+ <img src="images/background.jpg" id="background"/>
+ </div> 
+ 
+ 
+ <div id="text"> <!-- Change to JavaScript so it dynamiclly changes -->
+  <p><span class ="blueText">Drake.</span> Over My Dead Body</p>
+ </div>
+ 
+ <div id="audio">
+ <audio id="audio-element" src="Audio/Over_My_Dead_Body.mp3" controls   />
+
+ </div>
+ 
+ <div id="canvas">
+ <canvas id="fft" width="512" height="200"></canvas>
+ </div>
+ 
+ 
+ 
+</body>
+</html
