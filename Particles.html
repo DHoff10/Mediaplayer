@@ -1,0 +1,113 @@
+<canvas id="myCanvas" width=500 height=500></canvas>
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.0/jquery.min.js"></script>
+
+
+<script type="text/javascript">
+  var canvas,
+    ctx,
+    canvasHeight,
+    canvasWidth
+    bubbles = [],
+    bubbleCount = 200;
+   
+
+  Bubble = function() {
+    var x = 0,
+        y = 0,
+        radius = 5,
+        velX = 0,
+        color = "rgba(36,76,130,1)",
+        velY = 1;
+       velAlpha = 0;
+  
+    this.init = function() {
+      x = parseInt (250,0 * canvasWidth);
+      y = parseInt(499,0 * canvasHeight);
+      velX = Math.random()*20 - 10;
+      velY = Math.random()*30 - 10;
+      
+     
+      
+      
+      $(document).bind("beat",function() {
+        radius = 30;
+      })
+      
+    }
+    
+    this.setRadius = function(r) {
+      radius = r;
+    }
+    
+    this.move = function() {
+      x += velX;
+      y += velY;
+      
+      if (x >= canvasWidth || x <= 0) {
+        velX = 0 - velX;
+      }
+      
+      if (y >= canvasHeight || y <= 0) {
+        velY = 0 - velY;
+      }
+    }
+    
+    this.draw = function() { 
+      ctx.beginPath();
+      ctx.fillStyle = color;  
+      //ctx.fillRect(x,y,radius, radius);
+      ctx.arc(x,y,radius,0,Math.PI * 2,true);    
+      ctx.fill();
+      this.move();
+     
+      
+    }
+    
+    return this;
+  
+  }
+
+  function draw() {
+
+    for(var i = 0; i < bubbles.length; i++) {
+
+      bubbles[i].draw();
+    }
+  }
+  
+  function loop() {
+    clear();
+    draw();
+  }
+  
+  function clear() {
+    ctx.clearRect(0,0,canvasWidth,canvasHeight);
+    
+  }
+
+  function init() {
+    canvas = document.getElementById("myCanvas");
+    canvasWidth = canvas.width;
+    canvasHeight = canvas.height;
+    ctx = canvas.getContext("2d");
+  
+    
+    // create the bubbles
+    for (var i = 0; i < bubbleCount; i++) {
+      var bubble = new Bubble();
+      bubble.init();
+      bubbles.push(bubble);
+    }
+  
+  
+    setInterval("loop()",15);
+  }
+  
+  
+  
+  init();
+  
+  
+
+
+</script>

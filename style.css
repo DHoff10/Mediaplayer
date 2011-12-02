@@ -29,6 +29,13 @@
 
 	
 	margin-left: 500px;
-	margin-top: 480px;
+	margin-top: 400px;
 
 }
+
+#container {
+				margin-left: 500px;
+				margin-top: 300px;
+				width: 400px;
+				height: 300px;
+			}
