@@ -54,7 +54,9 @@
     
     this.draw = function() { 
       ctx.beginPath();
-      ctx.fillStyle = color;  
+      ctx.fillStyle = color;
+      /* Have you checked to see what color is? */
+      console.log(color);
       //ctx.fillRect(x,y,radius, radius);
       ctx.arc(x,y,radius,0,Math.PI * 2,true);    
       ctx.fill();
