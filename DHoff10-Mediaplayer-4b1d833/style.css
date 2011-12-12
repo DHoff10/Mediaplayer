@@ -13,7 +13,7 @@
 	font-family: 'PT Sans Narrow', Helvectica, sans-serif;
 
 	margin-left:50px;
-	margin-top:50px;
+	margin-top:-75px;
 	font-size:60px;
 
 }
@@ -25,17 +25,20 @@
 
 }
 
+#myCanvas {
+
+
+margin-left: 50px;
+margin-top: 20px;
+border: dashed;
+
+}
+
 #audio {
 
 	
 	margin-left: 500px;
-	margin-top: 400px;
+	margin-top: 70px;
 
 }
 
-#container {
-				margin-left: 500px;
-				margin-top: 300px;
-				width: 400px;
-				height: 300px;
-			}
